@@ -2,8 +2,6 @@ import socket
 import struct
 import time
 
-from toolbox import gfx
-
 _sizeref = {
     'h': 2,
     'i': 4,
@@ -23,7 +21,7 @@ class NatNetClient(object):
 
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._sock.bind((addr, port))
+        self._sock.bind(('', port))
         mreq = struct.pack("4sl", socket.inet_aton(addr), socket.INADDR_ANY)
         self._sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
 
@@ -41,6 +39,8 @@ class NatNetFrame(object):
         self._data     = data
         self._offset   = 0
 
+    def __str__(self):
+        return str(self.unpack_data())
 
     @property
     def data(self):
@@ -130,7 +130,7 @@ class NatNetFrame(object):
     def _unpack_name(self):
         """ Unpack a name terminated by C zero character (\0) """
         chunk = self._data[self._offset:self._offset+256]
-        name_len = chunk.find('\0')
+        name_len = chunk.find(b'\0')
         name = self._read(str(name_len)+'s', size = name_len) # maker set name
         self._offset += 1 # C zero char
 
@@ -205,85 +205,5 @@ class NatNetFrame(object):
         rbd['offsets']   = self._read('fff')
 
         return rbd
-
-expandable_type = set((tuple, dict, list, str))
-
-def pp(d):
-    order = None
-    if 'frame_number' in d:
-        order = ['frame_number',
-                 'markersets',
-                 'u_markers',
-                 'rb',
-                 'skeletons',
-                 'lb_markers',
-                 'latency',
-                 'timecode',
-                 'timecode_subframe']
-    return _pp(d, keys = order)
-
-def _pp(d, ident = 0, keys = None):
-    """Pretty printing of dictionary"""
-#    s = '{' + '{}'.format('\n'.join('{}: {}'.format(key, value) for key, value in d.items())) + '}'
-    if type(d) == dict:
-        s = ''
-        len_maxkey = max(len(key) for key in d.keys())
-        if keys is None:
-            keys = d.keys()
-        n = len(keys)
-        for i, key in enumerate(keys):
-            pp_value = _pp(d[key], ident = ident + len(key) + 3)
-            if i == 0:
-                s += '{{{}{}{}: {}'.format(gfx.green, key, gfx.end, pp_value)
-            else:
-                s += '{}{}{}{}: {}'.format(' '*(ident+1), gfx.green, key, gfx.end, pp_value)
-            if i == n-1:
-                s += '}'
-            else:
-                s += ',\n'
-        return s
-    elif type(d) == list:
-        n = len(d)
-        if n == 0 or not type(d[0]) in expandable_type:
-            return str(d)
-        else:
-            s = ''
-            for i, value in enumerate(d):
-                pp_value = _pp(value, ident = ident + 1)
-                if i == 0:
-                    s += '[{}'.format(pp_value)
-                else:
-                    s += '{}{}'.format(' '*(ident+1), pp_value)
-                if i == n-1:
-                    s += ']'
-                else:
-                    s += ',\n'
-            return s
-    elif type(d) == tuple:
-        n = len(d)
-        if n == 0:
-            return str(d)
-        elif not type(d[0]) in expandable_type:
-            return '({})'.format(','.join(_pp(e) for e in d))
-        else:
-            s = ''
-            for i, value in enumerate(d):
-                pp_value = _pp(value, ident = ident + 1)
-                if i == 0:
-                    s += '({}'.format(pp_value)
-                else:
-                    s += '{}{}'.format(' '*(ident+1), pp_value)
-                if i == n-1:
-                    s += ')'
-                else:
-                    s += ',\n'
-            return s
-    elif type(d) == str:
-        return "{}'{}'{}".format(gfx.cyan, d, gfx.end)
-    elif type(d) == float:
-        return '{}{: 5.4f}{}'.format(gfx.purple, d, gfx.end)
-    elif type(d) == int:
-        return '{}{}{}'.format(gfx.red, d, gfx.end)
-    return str(d)
 
 
